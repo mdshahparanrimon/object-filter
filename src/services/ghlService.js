@@ -136,7 +136,7 @@ function cleanAssociation(association) {
   };
 }
 
-async function searchRecords({ apiToken, locationId, normalizedAddress }) {
+async function searchRecords({ apiToken, locationId, address }) {
   const response = await requestWithRetry(
     {
       method: 'post',
@@ -145,9 +145,9 @@ async function searchRecords({ apiToken, locationId, normalizedAddress }) {
         locationId,
         filters: [
           {
-            fieldKey: 'normalized_address',
+            fieldKey: 'property_address',
             operator: 'eq',
-            value: normalizedAddress,
+            value: address,
           },
         ],
       },
@@ -165,7 +165,7 @@ async function searchRecords({ apiToken, locationId, normalizedAddress }) {
   return response.data;
 }
 
-async function createRecord({ apiToken, locationId, address, normalizedAddress }) {
+async function createRecord({ apiToken, locationId, address }) {
   const response = await requestWithRetry(
     {
       method: 'post',
@@ -174,7 +174,6 @@ async function createRecord({ apiToken, locationId, address, normalizedAddress }
         locationId,
         properties: {
           property_address: address,
-          normalized_address: normalizedAddress,
         },
       },
     },

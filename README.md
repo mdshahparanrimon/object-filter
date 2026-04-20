@@ -63,9 +63,15 @@ Response:
 
 ```json
 {
+  "status": "match",
   "records": []
 }
 ```
+
+Status values:
+
+- `match` means one or more records were found.
+- `unmatch` means no records were found.
 
 ### 2) Create property record
 
@@ -83,6 +89,7 @@ Response:
 
 ```json
 {
+  "status": "successful",
   "record": {}
 }
 ```

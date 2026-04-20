@@ -1,4 +1,3 @@
-const normalizeAddress = require('../utils/normalizeAddress');
 const {
   validateLocationAddressPayload,
   validateCheckAssociationPayload,
@@ -53,17 +52,21 @@ async function recordsSearchHandler(req, res, next) {
       });
     }
 
-    const normalizedAddress = normalizeAddress(req.body.address);
     const { locationId, apiToken } = req.ghlContext;
+    const address = req.body.address.trim();
 
     const searchResult = await searchRecords({
       apiToken,
       locationId,
-      normalizedAddress,
+      address,
     });
 
+    const records = recordsArrayFromSearchResult(searchResult);
+    const status = records.length > 0 ? 'match' : 'unmatch';
+
     return res.status(200).json({
-      records: recordsArrayFromSearchResult(searchResult),
+      status,
+      records,
     });
   } catch (error) {
     return next(error);
@@ -81,17 +84,17 @@ async function createRecordHandler(req, res, next) {
       });
     }
 
-    const normalizedAddress = normalizeAddress(req.body.address);
     const { locationId, apiToken } = req.ghlContext;
+    const address = req.body.address.trim();
 
     const createdRecordResult = await createRecord({
       apiToken,
       locationId,
-      address: req.body.address.trim(),
-      normalizedAddress,
+      address,
     });
 
     return res.status(201).json({
+      status: 'successful',
       record: createdRecordFromResult(createdRecordResult),
     });
   } catch (error) {
