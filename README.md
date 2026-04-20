@@ -127,6 +127,36 @@ Response:
 }
 ```
 
+### 5) Create association
+
+`POST /api/create-association`
+
+Request body:
+
+```json
+{
+  "address": "string",
+  "contactId": "string"
+}
+```
+
+Response:
+
+```json
+{
+  "status": "association_created",
+  "propertyId": "string",
+  "contactId": "string"
+}
+```
+
+Status values:
+
+- `association_created` means a new association was successfully created.
+- `already_exists` means the contact is already associated with that property.
+- `property_not_found` means no property was found for the given address.
+- `association_create_failed` means association could not be verified after update.
+
 ## Address Normalization
 
 Normalization logic:
@@ -169,4 +199,12 @@ curl -X POST http://localhost:3000/api/check-association \
 curl http://localhost:3000/api/get-associations/contact_1 \
   -H "x-ghl-api-token: Bearer YOUR_TOKEN" \
   -H "x-location-id: abc123"
+```
+
+```bash
+curl -X POST http://localhost:3000/api/create-association \
+  -H "Content-Type: application/json" \
+  -H "x-ghl-api-token: Bearer YOUR_TOKEN" \
+  -H "x-location-id: abc123" \
+  -d '{"address":"123 East Avenue","contactId":"contact_1"}'
 ```

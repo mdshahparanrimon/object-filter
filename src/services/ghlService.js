@@ -157,35 +157,53 @@ function cleanAssociation(association) {
   };
 }
 
-async function searchRecords({ apiToken, locationId, address }) {
+async function searchCustomObjectRecords({
+  apiToken,
+  locationId,
+  page = 1,
+  pageLimit = 20,
+  filters = [],
+}) {
   const response = await requestWithRetry(
     {
       method: 'post',
       url: '/objects/custom_objects.properties/records/search',
       data: {
         locationId,
-        page: 1,
-        pageLimit: 20,
-        filters: [
-          {
-            field: 'properties.property_address',
-            operator: 'eq',
-            value: address,
-          },
-        ],
+        page,
+        pageLimit,
+        filters,
       },
     },
-    { locationId },
+    { locationId, page, pageLimit },
     apiToken
   );
 
+  return response.data;
+}
+
+async function searchRecords({ apiToken, locationId, address }) {
+  const responseData = await searchCustomObjectRecords({
+    apiToken,
+    locationId,
+    page: 1,
+    pageLimit: 20,
+    filters: [
+      {
+        field: 'properties.property_address',
+        operator: 'eq',
+        value: address,
+      },
+    ],
+  });
+
   logger.info('GHL records search response', {
     endpoint: '/objects/custom_objects.properties/records/search',
-    statusCode: response.status,
+    statusCode: 201,
     locationId,
   });
 
-  return response.data;
+  return responseData;
 }
 
 async function createRecord({ apiToken, locationId, address }) {
@@ -214,39 +232,41 @@ async function createRecord({ apiToken, locationId, address }) {
 }
 
 async function getAssociations({ apiToken, locationId, contactId }) {
-  const response = await requestWithRetry(
-    {
-      method: 'post',
-      url: '/objects/custom_objects.properties/records/search',
-      data: {
-        locationId,
-        page: 1,
-        pageLimit: 100,
-        filters: [
-          {
-            field: 'relations.recordId',
-            operator: 'eq',
-            value: [contactId],
-          },
-        ],
-      },
-    },
-    { contactId, locationId },
-    apiToken
-  );
+  const responseData = await searchCustomObjectRecords({
+    apiToken,
+    locationId,
+    page: 1,
+    pageLimit: 100,
+    filters: [],
+  });
 
-  const associations = recordsArrayFromResponse(response.data).map((record) =>
-    cleanAssociation({
-      associationId: record.id,
-      toObjectId: record.id,
-      toObjectType: record.objectKey,
-      associationType: 'CUSTOM_OBJECT_RELATION',
-    })
-  );
+  const records = recordsArrayFromResponse(responseData);
+  const associations = [];
+
+  records.forEach((record) => {
+    const relations = Array.isArray(record.relations) ? record.relations : [];
+
+    relations.forEach((relation) => {
+      if (
+        relation &&
+        relation.objectKey === 'contact' &&
+        String(relation.recordId) === String(contactId)
+      ) {
+        associations.push(
+          cleanAssociation({
+            associationId: relation.relationId || relation.associationId,
+            toObjectId: record.id,
+            toObjectType: record.objectKey,
+            associationType: 'CUSTOM_OBJECT_RELATION',
+          })
+        );
+      }
+    });
+  });
 
   logger.info('GHL get associations response', {
     endpoint: '/objects/custom_objects.properties/records/search',
-    statusCode: response.status,
+    statusCode: 201,
     contactId,
     locationId,
     associationCount: associations.length,
@@ -255,8 +275,91 @@ async function getAssociations({ apiToken, locationId, contactId }) {
   return associations;
 }
 
+async function getRecordById({ apiToken, locationId, recordId }) {
+  const responseData = await searchCustomObjectRecords({
+    apiToken,
+    locationId,
+    page: 1,
+    pageLimit: 1,
+    filters: [
+      {
+        field: 'id',
+        operator: 'eq',
+        value: recordId,
+      },
+    ],
+  });
+
+  const records = recordsArrayFromResponse(responseData);
+  return records.length > 0 ? records[0] : null;
+}
+
+async function getContactAssociationTypeId({ apiToken, locationId }) {
+  const responseData = await searchCustomObjectRecords({
+    apiToken,
+    locationId,
+    page: 1,
+    pageLimit: 100,
+    filters: [],
+  });
+
+  const records = recordsArrayFromResponse(responseData);
+
+  for (const record of records) {
+    const relations = Array.isArray(record.relations) ? record.relations : [];
+
+    for (const relation of relations) {
+      if (relation.objectKey === 'contact' && typeof relation.associationId === 'string') {
+        return relation.associationId;
+      }
+    }
+  }
+
+  return null;
+}
+
+async function upsertAssociationByAddress({
+  apiToken,
+  locationId,
+  address,
+  contactId,
+  associationId,
+}) {
+  const response = await requestWithRetry(
+    {
+      method: 'post',
+      url: '/objects/custom_objects.properties/records/upsert',
+      data: {
+        locationId,
+        properties: {
+          property_address: address,
+        },
+        relations: [
+          {
+            associationId,
+            recordId: contactId,
+          },
+        ],
+      },
+    },
+    { locationId, contactId },
+    apiToken
+  );
+
+  logger.info('GHL upsert association response', {
+    endpoint: '/objects/custom_objects.properties/records/upsert',
+    statusCode: response.status,
+    locationId,
+  });
+
+  return response.data;
+}
+
 module.exports = {
   searchRecords,
   createRecord,
   getAssociations,
+  getRecordById,
+  getContactAssociationTypeId,
+  upsertAssociationByAddress,
 };
