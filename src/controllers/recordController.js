@@ -9,6 +9,23 @@ const {
   getAssociations,
 } = require('../services/ghlService');
 
+function getRequestBody(reqBody) {
+  if (reqBody && typeof reqBody === 'object') {
+    return reqBody;
+  }
+
+  if (typeof reqBody !== 'string') {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(reqBody);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch (_error) {
+    return {};
+  }
+}
+
 function recordsArrayFromSearchResult(result) {
   if (Array.isArray(result)) {
     return result;
@@ -43,7 +60,8 @@ function createdRecordFromResult(result) {
 
 async function recordsSearchHandler(req, res, next) {
   try {
-    const { isValid, errors } = validateLocationAddressPayload(req.body);
+    const payload = getRequestBody(req.body);
+    const { isValid, errors } = validateLocationAddressPayload(payload);
 
     if (!isValid) {
       return res.status(400).json({
@@ -53,7 +71,7 @@ async function recordsSearchHandler(req, res, next) {
     }
 
     const { locationId, apiToken } = req.ghlContext;
-    const address = req.body.address.trim();
+    const address = payload.address.trim();
 
     const searchResult = await searchRecords({
       apiToken,
@@ -75,7 +93,8 @@ async function recordsSearchHandler(req, res, next) {
 
 async function createRecordHandler(req, res, next) {
   try {
-    const { isValid, errors } = validateLocationAddressPayload(req.body);
+    const payload = getRequestBody(req.body);
+    const { isValid, errors } = validateLocationAddressPayload(payload);
 
     if (!isValid) {
       return res.status(400).json({
@@ -85,7 +104,7 @@ async function createRecordHandler(req, res, next) {
     }
 
     const { locationId, apiToken } = req.ghlContext;
-    const address = req.body.address.trim();
+    const address = payload.address.trim();
 
     const createdRecordResult = await createRecord({
       apiToken,
@@ -104,7 +123,8 @@ async function createRecordHandler(req, res, next) {
 
 async function checkAssociationHandler(req, res, next) {
   try {
-    const { isValid, errors } = validateCheckAssociationPayload(req.body);
+    const payload = getRequestBody(req.body);
+    const { isValid, errors } = validateCheckAssociationPayload(payload);
 
     if (!isValid) {
       return res.status(400).json({
@@ -115,10 +135,11 @@ async function checkAssociationHandler(req, res, next) {
 
     const associations = await getAssociations({
       apiToken: req.ghlContext.apiToken,
-      contactId: req.body.contactId.trim(),
+      locationId: req.ghlContext.locationId,
+      contactId: payload.contactId.trim(),
     });
 
-    const propertyId = req.body.propertyId.trim();
+    const propertyId = payload.propertyId.trim();
     const exists = associations.some(
       (association) => association.toObjectId === String(propertyId)
     );
@@ -142,6 +163,7 @@ async function getAssociationsHandler(req, res, next) {
 
     const associations = await getAssociations({
       apiToken: req.ghlContext.apiToken,
+      locationId: req.ghlContext.locationId,
       contactId: req.params.contactId.trim(),
     });
 

@@ -56,6 +56,7 @@ function toServiceError(error, fallbackMessage) {
   serviceError.code = 'GHL_API_ERROR';
   serviceError.details = {
     upstreamStatus: error.response ? error.response.status : null,
+    upstreamBody: error.response ? error.response.data : null,
   };
 
   return serviceError;
@@ -124,6 +125,26 @@ function associationArrayFromResponse(data) {
   return [];
 }
 
+function recordsArrayFromResponse(data) {
+  if (Array.isArray(data)) {
+    return data;
+  }
+
+  if (data && Array.isArray(data.records)) {
+    return data.records;
+  }
+
+  if (data && data.data && Array.isArray(data.data.records)) {
+    return data.data.records;
+  }
+
+  if (data && Array.isArray(data.data)) {
+    return data.data;
+  }
+
+  return [];
+}
+
 function cleanAssociation(association) {
   const toObjectId =
     association.toObjectId || association.toId || association.relatedObjectId || null;
@@ -143,9 +164,11 @@ async function searchRecords({ apiToken, locationId, address }) {
       url: '/objects/custom_objects.properties/records/search',
       data: {
         locationId,
+        page: 1,
+        pageLimit: 20,
         filters: [
           {
-            fieldKey: 'property_address',
+            field: 'properties.property_address',
             operator: 'eq',
             value: address,
           },
@@ -190,24 +213,42 @@ async function createRecord({ apiToken, locationId, address }) {
   return response.data;
 }
 
-async function getAssociations({ apiToken, contactId }) {
-  const endpoint = `/objects/${encodeURIComponent(contactId)}/associations`;
-
+async function getAssociations({ apiToken, locationId, contactId }) {
   const response = await requestWithRetry(
     {
-      method: 'get',
-      url: endpoint,
+      method: 'post',
+      url: '/objects/custom_objects.properties/records/search',
+      data: {
+        locationId,
+        page: 1,
+        pageLimit: 100,
+        filters: [
+          {
+            field: 'relations.recordId',
+            operator: 'eq',
+            value: [contactId],
+          },
+        ],
+      },
     },
-    { contactId },
+    { contactId, locationId },
     apiToken
   );
 
-  const associations = associationArrayFromResponse(response.data).map(cleanAssociation);
+  const associations = recordsArrayFromResponse(response.data).map((record) =>
+    cleanAssociation({
+      associationId: record.id,
+      toObjectId: record.id,
+      toObjectType: record.objectKey,
+      associationType: 'CUSTOM_OBJECT_RELATION',
+    })
+  );
 
   logger.info('GHL get associations response', {
-    endpoint,
+    endpoint: '/objects/custom_objects.properties/records/search',
     statusCode: response.status,
     contactId,
+    locationId,
     associationCount: associations.length,
   });
 
