@@ -5,6 +5,9 @@ const logger = require('../config/logger');
 
 const MAX_RETRIES = 3;
 const BASE_RETRY_DELAY_MS = 300;
+const CONTACT_PROPERTY_ASSOCIATION_KEY = 'property_owner_interested_contact';
+const CONTACT_OBJECT_KEY = 'contact';
+const PROPERTY_OBJECT_KEY = 'custom_objects.properties';
 
 const ghlClient = axios.create({
   baseURL: env.ghl.baseUrl,
@@ -136,6 +139,26 @@ function recordsArrayFromResponse(data) {
 
   if (data && data.data && Array.isArray(data.data.records)) {
     return data.data.records;
+  }
+
+  if (data && Array.isArray(data.data)) {
+    return data.data;
+  }
+
+  return [];
+}
+
+function associationsArrayFromResponse(data) {
+  if (Array.isArray(data)) {
+    return data;
+  }
+
+  if (data && Array.isArray(data.associations)) {
+    return data.associations;
+  }
+
+  if (data && data.data && Array.isArray(data.data.associations)) {
+    return data.data.associations;
   }
 
   if (data && Array.isArray(data.data)) {
@@ -295,27 +318,96 @@ async function getRecordById({ apiToken, locationId, recordId }) {
 }
 
 async function getContactAssociationTypeId({ apiToken, locationId }) {
-  const responseData = await searchCustomObjectRecords({
-    apiToken,
-    locationId,
-    page: 1,
-    pageLimit: 100,
-    filters: [],
+  const response = await requestWithRetry(
+    {
+      method: 'get',
+      url: `/associations/objectKey/${encodeURIComponent(PROPERTY_OBJECT_KEY)}`,
+      params: {
+        locationId,
+      },
+    },
+    { locationId },
+    apiToken
+  );
+
+  const associations = associationsArrayFromResponse(response.data);
+  const target = associations.find((association) => {
+    const firstObjectKey = association.firstObjectKey;
+    const secondObjectKey = association.secondObjectKey;
+
+    return (
+      association.key === CONTACT_PROPERTY_ASSOCIATION_KEY ||
+      (firstObjectKey === CONTACT_OBJECT_KEY && secondObjectKey === PROPERTY_OBJECT_KEY) ||
+      (firstObjectKey === PROPERTY_OBJECT_KEY && secondObjectKey === CONTACT_OBJECT_KEY)
+    );
   });
 
-  const records = recordsArrayFromResponse(responseData);
+  return target && typeof target.id === 'string' ? target.id : null;
+}
 
-  for (const record of records) {
-    const relations = Array.isArray(record.relations) ? record.relations : [];
+async function createContactAssociationType({ apiToken, locationId }) {
+  try {
+    const response = await requestWithRetry(
+      {
+        method: 'post',
+        url: '/associations/',
+        params: {
+          locationId,
+        },
+        data: {
+          locationId,
+          key: CONTACT_PROPERTY_ASSOCIATION_KEY,
+          firstObjectKey: CONTACT_OBJECT_KEY,
+          secondObjectKey: PROPERTY_OBJECT_KEY,
+          firstObjectLabel: "Contact's Name",
+          secondObjectLabel: 'Property Name',
+        },
+      },
+      { locationId },
+      apiToken
+    );
 
-    for (const relation of relations) {
-      if (relation.objectKey === 'contact' && typeof relation.associationId === 'string') {
-        return relation.associationId;
-      }
+    logger.info('GHL association type created', {
+      endpoint: '/associations/',
+      statusCode: response.status,
+      locationId,
+      key: CONTACT_PROPERTY_ASSOCIATION_KEY,
+    });
+  } catch (error) {
+    const duplicateKeyError =
+      error &&
+      error.details &&
+      error.details.upstreamBody &&
+      typeof error.details.upstreamBody.message === 'string' &&
+      error.details.upstreamBody.message.includes('Duplicate Association key');
+
+    if (!duplicateKeyError) {
+      throw error;
     }
   }
+}
 
-  return null;
+async function ensureContactAssociationTypeId({ apiToken, locationId }) {
+  let associationId = await getContactAssociationTypeId({
+    apiToken,
+    locationId,
+  });
+
+  if (associationId) {
+    return associationId;
+  }
+
+  await createContactAssociationType({
+    apiToken,
+    locationId,
+  });
+
+  associationId = await getContactAssociationTypeId({
+    apiToken,
+    locationId,
+  });
+
+  return associationId;
 }
 
 async function upsertAssociationByAddress({
@@ -361,5 +453,6 @@ module.exports = {
   getAssociations,
   getRecordById,
   getContactAssociationTypeId,
+  ensureContactAssociationTypeId,
   upsertAssociationByAddress,
 };

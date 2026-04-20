@@ -9,7 +9,7 @@ const {
   createRecord,
   getAssociations,
   getRecordById,
-  getContactAssociationTypeId,
+  ensureContactAssociationTypeId,
   upsertAssociationByAddress,
 } = require('../services/ghlService');
 
@@ -244,7 +244,7 @@ async function createAssociationHandler(req, res, next) {
     }
 
     if (!associationId) {
-      associationId = await getContactAssociationTypeId({
+      associationId = await ensureContactAssociationTypeId({
         apiToken,
         locationId,
       });
