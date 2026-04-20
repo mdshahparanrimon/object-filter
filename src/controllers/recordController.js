@@ -8,7 +8,6 @@ const {
   searchRecords,
   createRecord,
   getAssociations,
-  getRecordById,
   ensureContactAssociationTypeId,
   upsertAssociationByAddress,
 } = require('../services/ghlService');
@@ -60,17 +59,6 @@ function createdRecordFromResult(result) {
   }
 
   return result;
-}
-
-function hasContactRelation(record, contactId) {
-  const relations = record && Array.isArray(record.relations) ? record.relations : [];
-
-  return relations.some(
-    (relation) =>
-      relation &&
-      relation.objectKey === 'contact' &&
-      String(relation.recordId) === String(contactId)
-  );
 }
 
 async function recordsSearchHandler(req, res, next) {
@@ -223,32 +211,10 @@ async function createAssociationHandler(req, res, next) {
       });
     }
 
-    if (hasContactRelation(propertyRecord, contactId)) {
-      return res.status(200).json({
-        status: 'already_exists',
-        propertyId: propertyRecord.id,
-        contactId,
-      });
-    }
-
-    let associationId = null;
-    const existingRelations = Array.isArray(propertyRecord.relations)
-      ? propertyRecord.relations
-      : [];
-
-    for (const relation of existingRelations) {
-      if (relation.objectKey === 'contact' && typeof relation.associationId === 'string') {
-        associationId = relation.associationId;
-        break;
-      }
-    }
-
-    if (!associationId) {
-      associationId = await ensureContactAssociationTypeId({
-        apiToken,
-        locationId,
-      });
-    }
+    const associationId = await ensureContactAssociationTypeId({
+      apiToken,
+      locationId,
+    });
 
     if (!associationId) {
       return res.status(422).json({
@@ -257,7 +223,7 @@ async function createAssociationHandler(req, res, next) {
       });
     }
 
-    await upsertAssociationByAddress({
+    const upsertResult = await upsertAssociationByAddress({
       apiToken,
       locationId,
       address,
@@ -265,25 +231,11 @@ async function createAssociationHandler(req, res, next) {
       associationId,
     });
 
-    const refreshedRecord = await getRecordById({
-      apiToken,
-      locationId,
-      recordId: propertyRecord.id,
-    });
-
-    if (refreshedRecord && hasContactRelation(refreshedRecord, contactId)) {
-      return res.status(201).json({
-        status: 'association_created',
-        propertyId: propertyRecord.id,
-        contactId,
-      });
-    }
-
-    return res.status(502).json({
-      status: 'association_create_failed',
-      message: 'Unable to verify association was created for this existing property record',
+    return res.status(200).json({
+      status: 'association_submitted',
       propertyId: propertyRecord.id,
       contactId,
+      traceId: upsertResult && upsertResult.traceId ? upsertResult.traceId : null,
     });
   } catch (error) {
     return next(error);

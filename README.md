@@ -144,18 +144,17 @@ Response:
 
 ```json
 {
-  "status": "association_created",
+  "status": "association_submitted",
   "propertyId": "string",
-  "contactId": "string"
+  "contactId": "string",
+  "traceId": "string"
 }
 ```
 
 Status values:
 
-- `association_created` means a new association was successfully created.
-- `already_exists` means the contact is already associated with that property.
+- `association_submitted` means association request was submitted to GHL for the matched property address.
 - `property_not_found` means no property was found for the given address.
-- `association_create_failed` means association could not be verified after update.
 
 ## Address Normalization
 
