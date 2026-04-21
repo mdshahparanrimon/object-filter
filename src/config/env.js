@@ -6,7 +6,6 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 const requiredEnvVars = [
   'GHL_BASE_URL',
   'GHL_VERSION',
-  'PROPERTY_CONTACT_ASSOCIATION_ID',
 ];
 const missingEnvVars = requiredEnvVars.filter((name) => {
   const value = process.env[name];
@@ -30,6 +29,6 @@ module.exports = {
   ghl: {
     baseUrl: process.env.GHL_BASE_URL,
     version: process.env.GHL_VERSION,
-    propertyContactAssociationId: process.env.PROPERTY_CONTACT_ASSOCIATION_ID,
+    propertyContactAssociationId: process.env.PROPERTY_CONTACT_ASSOCIATION_ID || '',
   },
 };

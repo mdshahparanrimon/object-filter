@@ -464,8 +464,8 @@ async function createRelation({
     add: [
       {
         associationId,
-        firstRecordId: propertyRecordId,
-        secondRecordId: contactId,
+        firstRecordId: contactId,
+        secondRecordId: propertyRecordId,
       },
     ],
   };
@@ -494,6 +494,28 @@ async function createRelation({
       locationId,
       data: response.data,
     });
+
+    const erroredRelations =
+      response &&
+      response.data &&
+      response.data.results &&
+      Array.isArray(response.data.results.errored)
+        ? response.data.results.errored
+        : [];
+
+    if (erroredRelations.length > 0) {
+      const firstError = erroredRelations[0];
+      const relationError = new Error(
+        (firstError && firstError.error) || 'Failed to create relation'
+      );
+      relationError.statusCode = 422;
+      relationError.code = 'RELATION_CREATE_FAILED';
+      relationError.details = {
+        upstreamStatus: 422,
+        upstreamBody: response.data,
+      };
+      throw relationError;
+    }
 
     return response.data;
   } catch (error) {

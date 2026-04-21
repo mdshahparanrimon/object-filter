@@ -23,11 +23,19 @@ async function linkPropertyContactHandler(req, res, next) {
   try {
     const payload = getRequestBody(req.body);
     const { isValid, errors } = validateLinkPropertyContactPayload(payload);
+    const associationId = (env.ghl.propertyContactAssociationId || '').trim();
 
     if (!isValid) {
       return res.status(400).json({
         message: 'Validation failed',
         errors,
+      });
+    }
+
+    if (!associationId) {
+      return res.status(500).json({
+        message: 'Missing PROPERTY_CONTACT_ASSOCIATION_ID configuration',
+        code: 'CONFIGURATION_ERROR',
       });
     }
 
@@ -37,7 +45,7 @@ async function linkPropertyContactHandler(req, res, next) {
       locationId,
       propertyRecordId: payload.propertyRecordId.trim(),
       contactId: payload.contactId.trim(),
-      associationId: env.ghl.propertyContactAssociationId,
+      associationId,
     });
 
     return res.status(200).json({
