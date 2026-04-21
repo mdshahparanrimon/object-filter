@@ -74,6 +74,7 @@ async function recordsSearchHandler(req, res, next) {
     }
 
     const { locationId, apiToken } = req.ghlContext;
+    const address = payload.address.trim();
 
     const searchResult = await searchRecords({
       apiToken,
