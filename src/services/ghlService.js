@@ -65,10 +65,14 @@ function toServiceError(error, fallbackMessage) {
   return serviceError;
 }
 
-async function requestWithRetry(requestConfig, meta, apiToken) {
+async function requestWithRetry(requestConfig, meta, apiToken, options = {}) {
+  const maxRetries =
+    Number.isInteger(options.maxRetries) && options.maxRetries >= 0
+      ? options.maxRetries
+      : MAX_RETRIES;
   let attempt = 0;
 
-  while (attempt <= MAX_RETRIES) {
+  while (attempt <= maxRetries) {
     try {
       const finalRequestConfig = {
         ...requestConfig,
@@ -84,7 +88,7 @@ async function requestWithRetry(requestConfig, meta, apiToken) {
     } catch (error) {
       const canRetry = shouldRetry(error);
 
-      if (attempt >= MAX_RETRIES || !canRetry) {
+      if (attempt >= maxRetries || !canRetry) {
         throw toServiceError(error, 'GHL request failed');
       }
 
@@ -447,6 +451,74 @@ async function upsertAssociationByAddress({
   return response.data;
 }
 
+async function createRelation({
+  apiToken,
+  locationId,
+  propertyRecordId,
+  contactId,
+  associationId,
+}) {
+  const endpoint = '/associations/relations/bulk';
+  const requestPayload = {
+    locationId,
+    add: [
+      {
+        associationId,
+        firstRecordId: propertyRecordId,
+        secondRecordId: contactId,
+      },
+    ],
+  };
+
+  logger.info('GHL create relation request', {
+    endpoint,
+    locationId,
+    payload: requestPayload,
+  });
+
+  try {
+    const response = await requestWithRetry(
+      {
+        method: 'post',
+        url: endpoint,
+        data: requestPayload,
+      },
+      { locationId, propertyRecordId, contactId },
+      apiToken,
+      { maxRetries: 1 }
+    );
+
+    logger.info('GHL create relation response', {
+      endpoint,
+      statusCode: response.status,
+      locationId,
+      data: response.data,
+    });
+
+    return response.data;
+  } catch (error) {
+    const mappedError = error && error.code === 'GHL_API_ERROR'
+      ? error
+      : toServiceError(error, 'Failed to create relation');
+
+    logger.error('GHL create relation failed', {
+      endpoint,
+      locationId,
+      propertyRecordId,
+      contactId,
+      message: mappedError.message,
+      upstreamStatus: mappedError.details ? mappedError.details.upstreamStatus : null,
+      upstreamBody: mappedError.details ? mappedError.details.upstreamBody : null,
+    });
+
+    const relationError = new Error(mappedError.message || 'Failed to create relation');
+    relationError.statusCode = 500;
+    relationError.code = 'RELATION_CREATE_FAILED';
+    relationError.details = mappedError.details;
+    throw relationError;
+  }
+}
+
 module.exports = {
   searchRecords,
   createRecord,
@@ -455,4 +527,5 @@ module.exports = {
   getContactAssociationTypeId,
   ensureContactAssociationTypeId,
   upsertAssociationByAddress,
+  createRelation,
 };

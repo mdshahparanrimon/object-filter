@@ -12,6 +12,8 @@ const {
   upsertAssociationByAddress,
 } = require('../services/ghlService');
 
+const normalizeAddress = require('../utils/normalizeAddress');
+
 function getRequestBody(reqBody) {
   if (reqBody && typeof reqBody === 'object') {
     return reqBody;
@@ -75,11 +77,12 @@ async function recordsSearchHandler(req, res, next) {
 
     const { locationId, apiToken } = req.ghlContext;
     const address = payload.address.trim();
+    const normalizedAddress = normalizeAddress(address);
 
     const searchResult = await searchRecords({
       apiToken,
       locationId,
-      address,
+      address: normalizedAddress,
     });
 
     const records = recordsArrayFromSearchResult(searchResult);

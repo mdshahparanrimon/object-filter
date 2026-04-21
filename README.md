@@ -33,6 +33,7 @@ Service runs on `http://localhost:3000` by default.
 ```env
 GHL_BASE_URL=https://services.leadconnectorhq.com
 GHL_VERSION=2021-07-28
+PROPERTY_CONTACT_ASSOCIATION_ID=your_association_id
 PORT=3000
 ```
 
@@ -156,6 +157,35 @@ Status values:
 - `association_submitted` means association request was submitted to GHL for the matched property address.
 - `property_not_found` means no property was found for the given address.
 
+### 6) Link property and contact
+
+`POST /api/link-property-contact`
+
+Request body:
+
+```json
+{
+  "propertyRecordId": "string",
+  "contactId": "string"
+}
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "message": "Relation created successfully",
+  "data": {}
+}
+```
+
+Notes:
+
+- Uses `PROPERTY_CONTACT_ASSOCIATION_ID` from environment configuration.
+- Sends relation request to `POST /associations/relations/bulk` in GHL.
+- Retries once on retryable upstream failure.
+
 ## Address Normalization
 
 Normalization logic:
@@ -206,4 +236,12 @@ curl -X POST http://localhost:3000/api/create-association \
   -H "x-ghl-api-token: Bearer YOUR_TOKEN" \
   -H "x-location-id: abc123" \
   -d '{"address":"123 East Avenue","contactId":"contact_1"}'
+```
+
+```bash
+curl -X POST http://localhost:3000/api/link-property-contact \
+  -H "Content-Type: application/json" \
+  -H "x-ghl-api-token: Bearer YOUR_TOKEN" \
+  -H "x-location-id: abc123" \
+  -d '{"propertyRecordId":"property_1","contactId":"contact_1"}'
 ```

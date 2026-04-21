@@ -33,6 +33,18 @@ function validateCreateAssociationPayload(body) {
   };
 }
 
+function validateLinkPropertyContactPayload(body) {
+  const missingFields = buildMissingFields(body || {}, [
+    'propertyRecordId',
+    'contactId',
+  ]);
+
+  return {
+    isValid: missingFields.length === 0,
+    errors: missingFields.map((field) => `${field} is required`),
+  };
+}
+
 function validateContactIdParam(params) {
   const hasContactId = isNonEmptyString(params && params.contactId);
 
@@ -46,5 +58,6 @@ module.exports = {
   validateLocationAddressPayload,
   validateCheckAssociationPayload,
   validateCreateAssociationPayload,
+  validateLinkPropertyContactPayload,
   validateContactIdParam,
 };
