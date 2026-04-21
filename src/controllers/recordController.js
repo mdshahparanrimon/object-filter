@@ -87,9 +87,11 @@ async function recordsSearchHandler(req, res, next) {
 
     const records = recordsArrayFromSearchResult(searchResult);
     const status = records.length > 0 ? 'match' : 'unmatch';
+    const recordId = records.length > 0 ? records[0].id : null;
 
     return res.status(200).json({
       status,
+      recordId,
       records,
     });
   } catch (error) {
